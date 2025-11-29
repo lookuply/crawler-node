@@ -18,11 +18,11 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t crawler-node:latest .
+        docker build -t infrastructure-crawler-node:latest .
 
     - name: Save Docker image
       run: |
-        docker save crawler-node:latest | gzip > crawler-node.tar.gz
+        docker save infrastructure-crawler-node:latest | gzip > crawler-node.tar.gz
 
     - name: Deploy to Hetzner
       env:
