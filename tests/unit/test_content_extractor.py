@@ -31,7 +31,8 @@ def test_extract_from_html_success(extractor: ContentExtractor) -> None:
 
     assert result is not None
     assert result.url == "https://example.com/page"
-    assert result.title == "Test Page"
+    # Trafilatura extracts H1 as title, not <title> tag
+    assert result.title == "Main Title"
     assert "Main Title" in result.text
     assert "main content" in result.text
     assert result.language is not None
