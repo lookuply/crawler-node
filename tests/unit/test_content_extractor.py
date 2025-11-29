@@ -1,7 +1,8 @@
 """Tests for content extractor."""
 
 import pytest
-from crawler_node.content_extractor import ContentExtractor, ExtractedContent
+
+from crawler_node.content_extractor import ContentExtractor
 
 
 @pytest.fixture

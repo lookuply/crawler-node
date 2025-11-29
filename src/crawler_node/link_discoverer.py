@@ -1,6 +1,7 @@
 """Link discovery from HTML pages."""
 
-from urllib.parse import urljoin, urlparse, urldefrag
+from urllib.parse import urldefrag, urljoin, urlparse
+
 from bs4 import BeautifulSoup
 
 

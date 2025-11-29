@@ -1,9 +1,11 @@
 """Tests for coordinator client."""
 
-import pytest
-import httpx
 from unittest.mock import AsyncMock, MagicMock
-from crawler_node.coordinator_client import CoordinatorClient, CrawlTask
+
+import httpx
+import pytest
+
+from crawler_node.coordinator_client import CoordinatorClient
 
 
 @pytest.fixture

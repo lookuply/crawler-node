@@ -1,7 +1,9 @@
 """Tests for robots.txt handler."""
 
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+
 from crawler_node.robots_handler import RobotsHandler
 
 

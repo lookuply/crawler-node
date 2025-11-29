@@ -1,7 +1,8 @@
 """Handler for robots.txt compliance."""
 
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
+
 import httpx
 
 

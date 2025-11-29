@@ -2,13 +2,14 @@
 
 import asyncio
 import sys
-from crawler_node.crawler import Crawler
+
 from crawler_node.config import settings
+from crawler_node.crawler import Crawler
 
 
 async def main() -> None:
     """Run the crawler."""
-    print(f"Starting Lookuply Crawler Node")
+    print("Starting Lookuply Crawler Node")
     print(f"Coordinator: {settings.coordinator_url}")
     print(f"User-Agent: {settings.user_agent}")
     print(f"Respect robots.txt: {settings.respect_robots_txt}")

@@ -1,14 +1,15 @@
 """Main crawler orchestration."""
 
 import asyncio
+from collections.abc import AsyncGenerator
+
 import httpx
-from typing import AsyncGenerator
 
 from crawler_node.config import settings
-from crawler_node.coordinator_client import CoordinatorClient, CrawlTask
-from crawler_node.robots_handler import RobotsHandler
 from crawler_node.content_extractor import ContentExtractor, ExtractedContent
+from crawler_node.coordinator_client import CoordinatorClient, CrawlTask
 from crawler_node.link_discoverer import LinkDiscoverer
+from crawler_node.robots_handler import RobotsHandler
 
 
 class Crawler:
@@ -131,7 +132,7 @@ class Crawler:
             )
             return None
 
-    async def run(self, max_tasks: int = 100) -> AsyncGenerator[ExtractedContent, None]:
+    async def run(self, max_tasks: int = 100) -> AsyncGenerator[ExtractedContent]:
         """Run crawler continuously.
 
         Args:

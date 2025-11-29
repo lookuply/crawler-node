@@ -1,6 +1,7 @@
 """Content extraction from HTML pages."""
 
 from dataclasses import dataclass
+
 import trafilatura
 from trafilatura.settings import use_config
 

@@ -1,6 +1,7 @@
 """Tests for link discoverer."""
 
 import pytest
+
 from crawler_node.link_discoverer import LinkDiscoverer
 
 
@@ -83,9 +84,9 @@ def test_discover_filters_invalid_schemes(discoverer: LinkDiscoverer) -> None:
     links = discoverer.discover(html, "https://example.com")
 
     assert "https://example.com/page" in links
-    assert len([l for l in links if "javascript:" in l]) == 0
-    assert len([l for l in links if "mailto:" in l]) == 0
-    assert len([l for l in links if "ftp:" in l]) == 0
+    assert len([link for link in links if "javascript:" in link]) == 0
+    assert len([link for link in links if "mailto:" in link]) == 0
+    assert len([link for link in links if "ftp:" in link]) == 0
 
 
 def test_discover_deduplicates_links(discoverer: LinkDiscoverer) -> None:
