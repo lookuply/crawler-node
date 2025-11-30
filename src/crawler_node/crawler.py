@@ -102,9 +102,19 @@ class Crawler:
             # Discover links (if enabled)
             if settings.extract_links:
                 links = self.discoverer.discover(html, url, same_domain_only=False)
-                # TODO: Send discovered links to coordinator
-                # For now, just log count
-                print(f"Discovered {len(links)} links from {url}")
+
+                # Submit discovered links to coordinator
+                if links:
+                    try:
+                        result = await self.coordinator.submit_discovered_links(
+                            links=links[:100],  # Limit to 100 URLs (API max)
+                            source_url=url,
+                            priority=6,  # Slightly lower priority than manual submissions
+                        )
+                        print(f"Discovered {len(links)} links from {url}: "
+                              f"{result['added']} new, {result['skipped']} duplicates")
+                    except Exception as e:
+                        print(f"Failed to submit {len(links)} links from {url}: {e}")
 
             # Mark as completed
             await self.coordinator.mark_completed(task.id)
