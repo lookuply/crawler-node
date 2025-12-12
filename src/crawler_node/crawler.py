@@ -124,7 +124,7 @@ class Crawler:
                     content=content.text,
                     language=content.language,
                     author=content.author,
-                    date=content.date.isoformat() if content.date else None,
+                    date=content.date,  # date is already a string from trafilatura
                 )
                 print(f"Submitted content for {url} (title: {content.title or 'N/A'})")
             except Exception as e:
