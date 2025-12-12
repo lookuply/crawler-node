@@ -90,6 +90,47 @@ class CoordinatorClient:
         response = await self.client.post(url, json=json_data)
         response.raise_for_status()
 
+    async def submit_content(
+        self,
+        url_id: int,
+        title: str | None,
+        content: str,
+        language: str | None,
+        author: str | None = None,
+        date: str | None = None,
+    ) -> dict:
+        """Submit crawled page content to coordinator.
+
+        Args:
+            url_id: ID of URL
+            title: Page title
+            content: Main text content
+            language: Language code (e.g., 'en', 'sk')
+            author: Author name
+            date: Publication date (ISO format)
+
+        Returns:
+            API response with content submission details
+
+        Raises:
+            httpx.HTTPError: If request fails
+        """
+        payload = {
+            "title": title,
+            "content": content,
+            "language": language,
+        }
+
+        if author:
+            payload["author"] = author
+        if date:
+            payload["date"] = date
+
+        url = f"{self.base_url}/api/{self.api_version}/content/urls/{url_id}/content"
+        response = await self.client.post(url, json=payload)
+        response.raise_for_status()
+        return response.json()
+
     async def submit_discovered_links(
         self,
         links: list[str],
