@@ -116,20 +116,22 @@ class Crawler:
                     except Exception as e:
                         print(f"Failed to submit {len(links)} links from {url}: {e}")
 
-            # Submit content to coordinator for indexing
-            try:
-                await self.coordinator.submit_content(
-                    url_id=task.id,
-                    title=content.title,
-                    content=content.text,
-                    language=content.language,
-                    author=content.author,
-                    date=content.date,  # date is already a string from trafilatura
-                )
-                print(f"Submitted content for {url} (title: {content.title or 'N/A'})")
-            except Exception as e:
-                print(f"Warning: Failed to submit content for {url}: {e}")
-                # Continue anyway - marking as completed is more important
+            # Submit content to coordinator for indexing (if long enough)
+            if len(content.text) >= 50:
+                try:
+                    await self.coordinator.submit_content(
+                        url_id=task.id,
+                        title=content.title,
+                        content=content.text,
+                        language=content.language,
+                        author=content.author,
+                        date=content.date,  # date is already a string from trafilatura
+                    )
+                    print(f"Submitted content for {url} (title: {content.title or 'N/A'})")
+                except Exception as e:
+                    print(f"Warning: Failed to submit content for {url}: {e}")
+            else:
+                print(f"Skipping content submission for {url}: content too short ({len(content.text)} chars)")
 
             # Mark as completed
             await self.coordinator.mark_completed(task.id)
