@@ -128,6 +128,11 @@ class CoordinatorClient:
 
         url = f"{self.base_url}/api/{self.api_version}/content/urls/{url_id}/content"
         response = await self.client.post(url, json=payload)
+        if response.status_code != 201:
+            print(f"Content submission failed for URL {url_id}")
+            print(f"Status: {response.status_code}")
+            print(f"Response: {response.text}")
+            print(f"Payload: {payload}")
         response.raise_for_status()
         return response.json()
 

@@ -101,7 +101,12 @@ class Crawler:
 
             # Discover links (if enabled)
             if settings.extract_links:
-                links = self.discoverer.discover(html, url, same_domain_only=False)
+                links = self.discoverer.discover(
+                    html,
+                    url,
+                    same_domain_only=False,
+                    filter_by_language=settings.filter_by_language,
+                )
 
                 # Submit discovered links to coordinator
                 if links:

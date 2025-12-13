@@ -2,6 +2,8 @@
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from crawler_node.constants import EU_LANGUAGES
+
 
 class Settings(BaseSettings):
     """Application settings."""
@@ -24,6 +26,10 @@ class Settings(BaseSettings):
     # Content extraction
     extract_links: bool = True
     max_content_length: int = 10_000_000  # 10MB
+
+    # Language filtering
+    filter_by_language: bool = True
+    allowed_languages: str = ",".join(EU_LANGUAGES)
 
 
 settings = Settings()
