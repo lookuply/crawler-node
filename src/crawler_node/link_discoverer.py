@@ -1,57 +1,113 @@
-"""Link discovery from HTML pages."""
+"""Link discovery from HTML pages with quality-based filtering."""
 
 import logging
+import re
 from typing import Optional
 from urllib.parse import urldefrag, urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
-from crawler_node.constants import EU_LANGUAGES
-from crawler_node.language_predictor import LanguagePredictor
-
 logger = logging.getLogger(__name__)
 
 
-class LinkDiscoverer:
-    """Discoverer for extracting links from HTML."""
+# Domain allowlist - only discover links from these domains
+ALLOWED_DOMAINS = [
+    r'.*\.wikipedia\.org$',
+    r'.*\.wikimedia\.org$',
+    r'docs\.python\.org$',
+    r'developer\.mozilla\.org$',
+    r'.*\.readthedocs\.io$',
+    r'stackoverflow\.com$',
+    r'github\.com$',
+    r'arxiv\.org$',
+]
 
-    def __init__(self, language_predictor: Optional[LanguagePredictor] = None) -> None:
+# Blocked URL patterns (login, cart, API endpoints, pagination, etc.)
+BLOCKED_PATTERNS = [
+    r'/login', r'/register', r'/signup', r'/signin',
+    r'/cart', r'/checkout', r'/admin',
+    r'/api/', r'/rest/', r'/graphql',
+    r'[?&]sort=', r'[?&]page=[2-9]', r'[?&]filter=',
+    r'/edit', r'/delete', r'/remove',
+]
+
+# Blocked file extensions
+BLOCKED_EXTENSIONS = [
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.jpg', '.jpeg', '.png', '.gif', '.svg', '.ico',
+    '.mp3', '.mp4', '.avi', '.mkv', '.mov',
+    '.zip', '.tar', '.gz', '.rar', '.7z',
+    '.exe', '.dll', '.so', '.dylib',
+]
+
+# Crawl limits
+MAX_DEPTH = 3
+MIN_PARENT_SCORE = 60  # Only follow links from pages scoring 60+
+
+
+class LinkDiscoverer:
+    """Discovers links from HTML with quality-based filtering."""
+
+    def __init__(
+        self,
+        allowed_domains: Optional[list[str]] = None,
+        blocked_patterns: Optional[list[str]] = None,
+        blocked_extensions: Optional[list[str]] = None,
+        max_depth: int = MAX_DEPTH,
+        min_parent_score: int = MIN_PARENT_SCORE
+    ) -> None:
         """Initialize link discoverer.
 
         Args:
-            language_predictor: Language predictor for filtering (default: create new instance)
+            allowed_domains: List of regex patterns for allowed domains
+            blocked_patterns: List of regex patterns for blocked URL patterns
+            blocked_extensions: List of blocked file extensions
+            max_depth: Maximum crawl depth
+            min_parent_score: Minimum parent AI score to follow links
         """
-        self.language_predictor = language_predictor or LanguagePredictor()
+        self.allowed_domains = allowed_domains or ALLOWED_DOMAINS
+        self.blocked_patterns = blocked_patterns or BLOCKED_PATTERNS
+        self.blocked_extensions = blocked_extensions or BLOCKED_EXTENSIONS
+        self.max_depth = max_depth
+        self.min_parent_score = min_parent_score
 
     def discover(
         self,
         html: str,
         base_url: str,
-        same_domain_only: bool = False,
-        filter_by_language: bool = True,
-        allowed_languages: Optional[set[str]] = None,
-    ) -> list[str]:
+        parent_score: int = 0,
+        depth: int = 0
+    ) -> list[dict]:
         """Discover links from HTML.
 
         Args:
             html: Raw HTML content
             base_url: Base URL for resolving relative links
-            same_domain_only: Only return links from same domain
-            filter_by_language: Filter links by European languages (default: True)
-            allowed_languages: Set of allowed language codes (default: EU_LANGUAGES)
+            parent_score: AI quality score of parent page (0-100)
+            depth: Current crawl depth
 
         Returns:
-            List of discovered URLs (filtered by language if enabled)
+            List of dicts with keys: url, priority, depth, parent_url
         """
         if not html or not html.strip():
             return []
 
+        # Don't discover links from low-quality pages
+        if parent_score < self.min_parent_score:
+            logger.debug(
+                f"Skipping link discovery: parent score {parent_score} < {self.min_parent_score}"
+            )
+            return []
+
+        # Don't go deeper than max depth
+        if depth >= self.max_depth:
+            logger.debug(f"Skipping link discovery: depth {depth} >= {self.max_depth}")
+            return []
+
         soup = BeautifulSoup(html, "lxml")
-        links = set()
+        discovered = []
 
-        base_domain = self._get_domain(base_url)
-
-        # Find all <a> tags with href
+        # Extract all links
         for link in soup.find_all("a", href=True):
             href = link["href"]
 
@@ -65,23 +121,64 @@ class LinkDiscoverer:
             # Remove fragment
             absolute_url, _ = urldefrag(absolute_url)
 
-            # Filter invalid schemes
-            if not self._is_valid_scheme(absolute_url):
+            # Remove trailing slash
+            absolute_url = absolute_url.rstrip('/')
+
+            # Apply filtering rules
+            if not self._should_crawl(absolute_url):
                 continue
 
-            # Filter by domain if requested
-            if same_domain_only:
-                link_domain = self._get_domain(absolute_url)
-                if link_domain != base_domain:
-                    continue
+            # Calculate priority based on parent quality
+            priority = self._calculate_priority(parent_score)
 
-            links.add(absolute_url)
+            discovered.append({
+                'url': absolute_url,
+                'priority': priority,
+                'depth': depth + 1,
+                'parent_url': base_url
+            })
 
-        # Apply language filtering if enabled
-        if filter_by_language:
-            links = self._filter_by_language(links, allowed_languages or EU_LANGUAGES)
+        # Deduplicate by URL
+        seen = set()
+        unique = []
+        for item in discovered:
+            if item['url'] not in seen:
+                seen.add(item['url'])
+                unique.append(item)
 
-        return list(links)
+        logger.info(
+            f"Discovered {len(unique)} unique links from {base_url} "
+            f"(score={parent_score}, depth={depth})"
+        )
+
+        return unique
+
+    def _should_crawl(self, url: str) -> bool:
+        """Apply filtering rules to URL.
+
+        Args:
+            url: URL to check
+
+        Returns:
+            True if URL should be crawled
+        """
+        # Valid scheme check
+        if not self._is_valid_scheme(url):
+            return False
+
+        # Domain allowlist check
+        if not self._is_allowed_domain(url):
+            return False
+
+        # Pattern blocking check
+        if self._is_blocked_pattern(url):
+            return False
+
+        # Extension blocking check
+        if self._has_blocked_extension(url):
+            return False
+
+        return True
 
     def _is_valid_scheme(self, url: str) -> bool:
         """Check if URL has valid scheme.
@@ -95,58 +192,67 @@ class LinkDiscoverer:
         parsed = urlparse(url)
         return parsed.scheme in ["http", "https"]
 
-    def _get_domain(self, url: str) -> str:
-        """Extract domain from URL.
+    def _is_allowed_domain(self, url: str) -> bool:
+        """Check if domain is in allowlist.
 
         Args:
-            url: Full URL
+            url: URL to check
 
         Returns:
-            Domain (netloc)
+            True if domain matches any allowed pattern
         """
-        parsed = urlparse(url)
-        return parsed.netloc
+        domain = urlparse(url).netloc
 
-    def _filter_by_language(self, links: set[str], allowed_languages: set[str]) -> set[str]:
-        """Filter links by predicted language.
+        for pattern in self.allowed_domains:
+            if re.match(pattern, domain):
+                return True
+
+        return False
+
+    def _is_blocked_pattern(self, url: str) -> bool:
+        """Check if URL matches blocked patterns.
 
         Args:
-            links: Set of URLs to filter
-            allowed_languages: Set of allowed language codes (ISO 639-1)
+            url: URL to check
 
         Returns:
-            Filtered set of URLs (only EU languages + unknown)
+            True if URL matches any blocked pattern
         """
-        filtered = set()
-        stats = {"total": len(links), "kept": 0, "filtered": 0, "unknown": 0}
+        for pattern in self.blocked_patterns:
+            if re.search(pattern, url, re.IGNORECASE):
+                return True
 
-        for link in links:
-            predicted_lang = self.language_predictor.predict(link)
+        return False
 
-            if predicted_lang is None:
-                # Unknown language → keep (safe approach, avoid false positives)
-                filtered.add(link)
-                stats["unknown"] += 1
-            elif predicted_lang == "SKIP":
-                # Definitely non-EU → filter
-                stats["filtered"] += 1
-            elif predicted_lang in allowed_languages:
-                # EU language → keep
-                filtered.add(link)
-                stats["kept"] += 1
-            else:
-                # Non-EU language → filter
-                stats["filtered"] += 1
+    def _has_blocked_extension(self, url: str) -> bool:
+        """Check if URL has blocked file extension.
 
-        # Log statistics
-        if stats["total"] > 0:
-            logger.info(
-                f"Language filtering: {stats['kept']} kept ({stats['kept']/stats['total']*100:.1f}%), "
-                f"{stats['filtered']} filtered ({stats['filtered']/stats['total']*100:.1f}%), "
-                f"{stats['unknown']} unknown ({stats['unknown']/stats['total']*100:.1f}%) "
-                f"out of {stats['total']} total links"
-            )
+        Args:
+            url: URL to check
+
+        Returns:
+            True if URL has blocked extension
+        """
+        path = urlparse(url).path.lower()
+
+        for ext in self.blocked_extensions:
+            if path.endswith(ext):
+                return True
+
+        return False
+
+    def _calculate_priority(self, parent_score: int) -> str:
+        """Calculate priority based on parent page quality.
+
+        Args:
+            parent_score: AI score of parent page (0-100)
+
+        Returns:
+            Priority level: 'high', 'medium', or 'low'
+        """
+        if parent_score >= 80:
+            return 'high'
+        elif parent_score >= 60:
+            return 'medium'
         else:
-            logger.info("Language filtering: no links to filter")
-
-        return filtered
+            return 'low'
