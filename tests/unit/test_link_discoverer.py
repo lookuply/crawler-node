@@ -2,7 +2,6 @@
 
 import pytest
 
-from crawler_node.constants import EU_LANGUAGES
 from crawler_node.link_discoverer import LinkDiscoverer
 
 

@@ -6,6 +6,7 @@ Used for filtering non-EU language content at link discovery time.
 
 import logging
 import re
+from typing import Optional
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
