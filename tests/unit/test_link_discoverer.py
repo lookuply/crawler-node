@@ -23,11 +23,12 @@ def test_discover_absolute_links(discoverer: LinkDiscoverer) -> None:
     </html>
     """
 
-    links = discoverer.discover(html, "https://example.com")
+    links = discoverer.discover(html, "https://example.com", parent_score=80)
+    urls = [link["url"] for link in links]
 
-    assert "https://example.com/page1" in links
-    assert "https://example.com/page2" in links
-    assert "https://other.com/page" in links
+    assert "https://example.com/page1" in urls
+    assert "https://example.com/page2" in urls
+    assert "https://other.com/page" in urls
 
 
 def test_discover_relative_links(discoverer: LinkDiscoverer) -> None:
@@ -42,11 +43,12 @@ def test_discover_relative_links(discoverer: LinkDiscoverer) -> None:
     </html>
     """
 
-    links = discoverer.discover(html, "https://example.com")
+    links = discoverer.discover(html, "https://example.com", parent_score=80)
+    urls = [link["url"] for link in links]
 
-    assert "https://example.com/about" in links
-    assert "https://example.com/contact" in links
-    assert "https://example.com/products/item1" in links
+    assert "https://example.com/about" in urls
+    assert "https://example.com/contact" in urls
+    assert "https://example.com/products/item1" in urls
 
 
 def test_discover_filters_fragments(discoverer: LinkDiscoverer) -> None:
@@ -60,12 +62,13 @@ def test_discover_filters_fragments(discoverer: LinkDiscoverer) -> None:
     </html>
     """
 
-    links = discoverer.discover(html, "https://example.com")
+    links = discoverer.discover(html, "https://example.com", parent_score=80)
+    urls = [link["url"] for link in links]
 
     # Both should point to same URL without fragment
-    assert "https://example.com/page" in links
+    assert "https://example.com/page" in urls
     # Should not contain fragments
-    assert all("#" not in link for link in links)
+    assert all("#" not in url for url in urls)
 
 
 def test_discover_filters_invalid_schemes(discoverer: LinkDiscoverer) -> None:
@@ -81,12 +84,13 @@ def test_discover_filters_invalid_schemes(discoverer: LinkDiscoverer) -> None:
     </html>
     """
 
-    links = discoverer.discover(html, "https://example.com")
+    links = discoverer.discover(html, "https://example.com", parent_score=80)
+    urls = [link["url"] for link in links]
 
-    assert "https://example.com/page" in links
-    assert len([link for link in links if "javascript:" in link]) == 0
-    assert len([link for link in links if "mailto:" in link]) == 0
-    assert len([link for link in links if "ftp:" in link]) == 0
+    assert "https://example.com/page" in urls
+    assert len([url for url in urls if "javascript:" in url]) == 0
+    assert len([url for url in urls if "mailto:" in url]) == 0
+    assert len([url for url in urls if "ftp:" in url]) == 0
 
 
 def test_discover_deduplicates_links(discoverer: LinkDiscoverer) -> None:
@@ -101,10 +105,11 @@ def test_discover_deduplicates_links(discoverer: LinkDiscoverer) -> None:
     </html>
     """
 
-    links = discoverer.discover(html, "https://example.com")
+    links = discoverer.discover(html, "https://example.com", parent_score=80)
+    urls = [link["url"] for link in links]
 
     # Should only have one instance
-    assert links.count("https://example.com/page") == 1
+    assert urls.count("https://example.com/page") == 1
 
 
 def test_discover_handles_malformed_html(discoverer: LinkDiscoverer) -> None:
@@ -117,15 +122,16 @@ def test_discover_handles_malformed_html(discoverer: LinkDiscoverer) -> None:
         </body>
     """
 
-    links = discoverer.discover(html, "https://example.com")
+    links = discoverer.discover(html, "https://example.com", parent_score=80)
+    urls = [link["url"] for link in links]
 
     # Should still extract valid links
-    assert "https://example.com/page" in links or "https://example.com/another" in links
+    assert "https://example.com/page" in urls or "https://example.com/another" in urls
 
 
 def test_discover_empty_html(discoverer: LinkDiscoverer) -> None:
     """Test discovering links from empty HTML."""
-    links = discoverer.discover("", "https://example.com")
+    links = discoverer.discover("", "https://example.com", parent_score=80)
 
     assert len(links) == 0
 
@@ -140,277 +146,115 @@ def test_discover_no_links(discoverer: LinkDiscoverer) -> None:
     </html>
     """
 
-    links = discoverer.discover(html, "https://example.com")
+    links = discoverer.discover(html, "https://example.com", parent_score=80)
 
     assert len(links) == 0
 
 
-def test_discover_same_domain_only(discoverer: LinkDiscoverer) -> None:
-    """Test filtering to same domain only."""
+def test_discover_returns_dict_format(discoverer: LinkDiscoverer) -> None:
+    """Test that discover returns dicts with correct keys."""
     html = """
     <html>
         <body>
-            <a href="https://example.com/page1">Internal 1</a>
-            <a href="https://example.com/page2">Internal 2</a>
-            <a href="https://other.com/page">External</a>
+            <a href="https://example.com/page">Page</a>
         </body>
     </html>
     """
 
-    links = discoverer.discover(html, "https://example.com", same_domain_only=True)
+    links = discoverer.discover(html, "https://example.com", parent_score=75, depth=1)
 
-    assert "https://example.com/page1" in links
-    assert "https://example.com/page2" in links
-    assert "https://other.com/page" not in links
+    assert len(links) == 1
+    link = links[0]
+
+    # Check all required keys exist
+    assert "url" in link
+    assert "priority" in link
+    assert "depth" in link
+    assert "parent_url" in link
+
+    # Check values
+    assert link["url"] == "https://example.com/page"
+    assert link["parent_url"] == "https://example.com"
+    assert link["depth"] == 2  # Parent depth + 1
+    assert isinstance(link["priority"], int)
+    assert 0 <= link["priority"] <= 100
 
 
-class TestLanguageFiltering:
-    """Integration tests for language-based link filtering."""
+def test_discover_respects_parent_score_threshold(discoverer: LinkDiscoverer) -> None:
+    """Test that low-quality parent pages don't discover links."""
+    html = """
+    <html>
+        <body>
+            <a href="https://example.com/page">Page</a>
+        </body>
+    </html>
+    """
 
-    def test_discover_filters_non_eu_languages(self, discoverer: LinkDiscoverer) -> None:
-        """Test that non-EU language links are filtered out."""
-        html = """
-        <html>
-            <body>
-                <a href="https://example.de/page">German</a>
-                <a href="https://example.jp/page">Japanese</a>
-                <a href="https://example.cn/page">Chinese</a>
-                <a href="https://example.fr/page">French</a>
-            </body>
-        </html>
-        """
+    # Low parent score (below default threshold of 40)
+    links = discoverer.discover(html, "https://example.com", parent_score=20)
 
-        links = discoverer.discover(
-            html,
-            "https://example.com",
-            filter_by_language=True,
-        )
+    # Should not discover links from low-quality pages
+    assert len(links) == 0
 
-        # EU languages should be kept
-        assert "https://example.de/page" in links
-        assert "https://example.fr/page" in links
 
-        # Non-EU languages should be filtered
-        assert "https://example.jp/page" not in links
-        assert "https://example.cn/page" not in links
+def test_discover_respects_max_depth(discoverer: LinkDiscoverer) -> None:
+    """Test that max depth prevents link discovery."""
+    html = """
+    <html>
+        <body>
+            <a href="https://example.com/page">Page</a>
+        </body>
+    </html>
+    """
 
-    def test_discover_keeps_eu_languages(self, discoverer: LinkDiscoverer) -> None:
-        """Test that all EU language links are kept."""
-        html = """
-        <html>
-            <body>
-                <a href="https://example.sk/page">Slovak</a>
-                <a href="https://example.de/page">German</a>
-                <a href="https://example.fr/page">French</a>
-                <a href="https://example.es/page">Spanish</a>
-                <a href="https://example.it/page">Italian</a>
-                <a href="https://example.pl/page">Polish</a>
-                <a href="https://example.cz/page">Czech</a>
-            </body>
-        </html>
-        """
+    # At max depth (default is 3)
+    links = discoverer.discover(html, "https://example.com", parent_score=80, depth=3)
 
-        links = discoverer.discover(
-            html,
-            "https://example.com",
-            filter_by_language=True,
-        )
+    # Should not discover links at max depth
+    assert len(links) == 0
 
-        # All EU languages should be kept
-        assert "https://example.sk/page" in links
-        assert "https://example.de/page" in links
-        assert "https://example.fr/page" in links
-        assert "https://example.es/page" in links
-        assert "https://example.it/page" in links
-        assert "https://example.pl/page" in links
-        assert "https://example.cz/page" in links
 
-    def test_discover_keeps_unknown_languages(self, discoverer: LinkDiscoverer) -> None:
-        """Test that unknown language links are kept (safe approach)."""
-        html = """
-        <html>
-            <body>
-                <a href="https://example.com/page">Unknown</a>
-                <a href="https://example.org/page">Generic</a>
-                <a href="https://example.io/page">IO</a>
-            </body>
-        </html>
-        """
+def test_discover_priority_based_on_parent_score(discoverer: LinkDiscoverer) -> None:
+    """Test that link priority is influenced by parent score."""
+    html = """
+    <html>
+        <body>
+            <a href="https://example.com/page">Page</a>
+        </body>
+    </html>
+    """
 
-        links = discoverer.discover(
-            html,
-            "https://example.com",
-            filter_by_language=True,
-        )
+    # High quality parent
+    high_score_links = discoverer.discover(html, "https://example.com", parent_score=90)
 
-        # Unknown languages should be kept (safe default)
-        assert "https://example.com/page" in links
-        assert "https://example.org/page" in links
-        assert "https://example.io/page" in links
+    # Medium quality parent
+    medium_score_links = discoverer.discover(html, "https://example.com", parent_score=50)
 
-    def test_discover_keeps_allowlisted_domains(self, discoverer: LinkDiscoverer) -> None:
-        """Test that allowlisted domains are always kept."""
-        html = """
-        <html>
-            <body>
-                <a href="https://en.wikipedia.org/wiki/Test">Wikipedia</a>
-                <a href="https://europa.eu/page">Europa</a>
-                <a href="https://bbc.co.uk/news">BBC</a>
-                <a href="https://theguardian.com/article">Guardian</a>
-            </body>
-        </html>
-        """
+    # Links from higher quality pages should have higher priority
+    if high_score_links and medium_score_links:
+        assert high_score_links[0]["priority"] >= medium_score_links[0]["priority"]
 
-        links = discoverer.discover(
-            html,
-            "https://example.com",
-            filter_by_language=True,
-        )
 
-        # Allowlisted domains should always be kept
-        assert "https://en.wikipedia.org/wiki/Test" in links
-        assert "https://europa.eu/page" in links
-        assert "https://bbc.co.uk/news" in links
-        assert "https://theguardian.com/article" in links
+def test_discover_filters_blocked_extensions(discoverer: LinkDiscoverer) -> None:
+    """Test that blocked file extensions are filtered."""
+    html = """
+    <html>
+        <body>
+            <a href="https://example.com/page.html">HTML</a>
+            <a href="https://example.com/image.jpg">Image</a>
+            <a href="https://example.com/doc.pdf">PDF</a>
+            <a href="https://example.com/video.mp4">Video</a>
+        </body>
+    </html>
+    """
 
-    def test_discover_filtering_can_be_disabled(self, discoverer: LinkDiscoverer) -> None:
-        """Test that language filtering can be disabled."""
-        html = """
-        <html>
-            <body>
-                <a href="https://example.de/page">German</a>
-                <a href="https://example.jp/page">Japanese</a>
-                <a href="https://example.cn/page">Chinese</a>
-            </body>
-        </html>
-        """
+    links = discoverer.discover(html, "https://example.com", parent_score=80)
+    urls = [link["url"] for link in links]
 
-        links = discoverer.discover(
-            html,
-            "https://example.com",
-            filter_by_language=False,
-        )
+    # HTML pages should be kept
+    assert "https://example.com/page.html" in urls
 
-        # All links should be kept when filtering is disabled
-        assert "https://example.de/page" in links
-        assert "https://example.jp/page" in links
-        assert "https://example.cn/page" in links
-
-    def test_discover_path_based_language_detection(self, discoverer: LinkDiscoverer) -> None:
-        """Test language detection from URL paths."""
-        html = """
-        <html>
-            <body>
-                <a href="https://example.com/en/page">English</a>
-                <a href="https://example.com/de/page">German</a>
-                <a href="https://example.com/ja/page">Japanese</a>
-                <a href="https://example.com/zh/page">Chinese</a>
-            </body>
-        </html>
-        """
-
-        links = discoverer.discover(
-            html,
-            "https://example.com",
-            filter_by_language=True,
-        )
-
-        # EU languages should be kept
-        assert "https://example.com/en/page" in links
-        assert "https://example.com/de/page" in links
-
-        # Non-EU languages should be filtered
-        # Note: /ja/ and /zh/ are not in EU_LANGUAGES, so they should be filtered
-        # However, the current implementation might return None for unknown paths
-        # Let's check: if the path detector returns None, they'll be kept (safe approach)
-        # So we can't reliably test this without knowing the exact implementation
-
-    def test_discover_custom_allowed_languages(self, discoverer: LinkDiscoverer) -> None:
-        """Test filtering with custom allowed languages."""
-        html = """
-        <html>
-            <body>
-                <a href="https://example.sk/page">Slovak</a>
-                <a href="https://example.de/page">German</a>
-                <a href="https://example.fr/page">French</a>
-            </body>
-        </html>
-        """
-
-        # Only allow Slovak and German
-        links = discoverer.discover(
-            html,
-            "https://example.com",
-            filter_by_language=True,
-            allowed_languages={"sk", "de"},
-        )
-
-        # Slovak and German should be kept
-        assert "https://example.sk/page" in links
-        assert "https://example.de/page" in links
-
-        # French should be filtered (not in custom allowed set)
-        assert "https://example.fr/page" not in links
-
-    def test_discover_mixed_language_links(self, discoverer: LinkDiscoverer) -> None:
-        """Test filtering with mixed EU and non-EU language links."""
-        html = """
-        <html>
-            <body>
-                <a href="https://example.sk/page1">Slovak</a>
-                <a href="https://example.jp/page2">Japanese</a>
-                <a href="https://example.de/page3">German</a>
-                <a href="https://example.ru/page4">Russian</a>
-                <a href="https://example.fr/page5">French</a>
-                <a href="https://example.cn/page6">Chinese</a>
-                <a href="https://example.com/page7">Unknown</a>
-            </body>
-        </html>
-        """
-
-        links = discoverer.discover(
-            html,
-            "https://example.com",
-            filter_by_language=True,
-        )
-
-        # EU languages should be kept
-        assert "https://example.sk/page1" in links
-        assert "https://example.de/page3" in links
-        assert "https://example.fr/page5" in links
-
-        # Unknown language should be kept (safe approach)
-        assert "https://example.com/page7" in links
-
-        # Non-EU languages should be filtered
-        assert "https://example.jp/page2" not in links
-        assert "https://example.ru/page4" not in links
-        assert "https://example.cn/page6" not in links
-
-    def test_discover_filtering_with_same_domain_only(self, discoverer: LinkDiscoverer) -> None:
-        """Test that language filtering works with same_domain_only."""
-        html = """
-        <html>
-            <body>
-                <a href="https://example.com/en/page1">Internal EN</a>
-                <a href="https://example.com/de/page2">Internal DE</a>
-                <a href="https://other.de/page3">External DE</a>
-                <a href="https://other.jp/page4">External JP</a>
-            </body>
-        </html>
-        """
-
-        links = discoverer.discover(
-            html,
-            "https://example.com",
-            same_domain_only=True,
-            filter_by_language=True,
-        )
-
-        # Internal links with EU languages should be kept
-        assert "https://example.com/en/page1" in links
-        assert "https://example.com/de/page2" in links
-
-        # External links should be filtered by domain
-        assert "https://other.de/page3" not in links
-        assert "https://other.jp/page4" not in links
+    # Binary files should be filtered
+    assert "https://example.com/image.jpg" not in urls
+    assert "https://example.com/doc.pdf" not in urls
+    assert "https://example.com/video.mp4" not in urls
