@@ -7,8 +7,11 @@ from crawler_node.link_discoverer import LinkDiscoverer
 
 @pytest.fixture
 def discoverer() -> LinkDiscoverer:
-    """Create link discoverer."""
-    return LinkDiscoverer()
+    """Create link discoverer with test-friendly configuration."""
+    return LinkDiscoverer(
+        allowed_domains=[r'.*'],  # Allow all domains for testing
+        min_parent_score=40,  # Lower threshold for testing
+    )
 
 
 def test_discover_absolute_links(discoverer: LinkDiscoverer) -> None:

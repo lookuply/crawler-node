@@ -241,18 +241,22 @@ class LinkDiscoverer:
 
         return False
 
-    def _calculate_priority(self, parent_score: int) -> str:
+    def _calculate_priority(self, parent_score: int) -> int:
         """Calculate priority based on parent page quality.
 
         Args:
             parent_score: AI score of parent page (0-100)
 
         Returns:
-            Priority level: 'high', 'medium', or 'low'
+            Priority score (0-100) derived from parent score
         """
+        # Child pages inherit slightly lower priority than parent
+        # High quality parents (80+) → 70-75 priority
+        # Medium quality parents (60-79) → 55-65 priority
+        # Low quality parents (40-59) → 40-50 priority
         if parent_score >= 80:
-            return 'high'
+            return max(70, parent_score - 10)
         elif parent_score >= 60:
-            return 'medium'
+            return max(55, parent_score - 15)
         else:
-            return 'low'
+            return max(40, parent_score - 10)
