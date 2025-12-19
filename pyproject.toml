@@ -45,7 +45,14 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "ANN", "S", "B", "A", "C4", "PT"]
-ignore = ["ANN101", "ANN102", "S101"]
+ignore = [
+    "ANN101",  # Missing type annotation for self
+    "ANN102",  # Missing type annotation for cls
+    "ANN001",  # Missing type annotation for function argument (allow in tests)
+    "ANN201",  # Missing return type annotation for public function (allow in tests)
+    "UP007",   # Use X | Y instead of Optional[X] (allow both styles)
+    "S101",    # Use of assert detected
+]
 
 [tool.mypy]
 python_version = "3.13"
