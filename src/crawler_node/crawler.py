@@ -104,8 +104,8 @@ class Crawler:
                 links = self.discoverer.discover(
                     html,
                     url,
-                    same_domain_only=False,
-                    filter_by_language=settings.filter_by_language,
+                    parent_score=0,  # Will be updated when AI evaluation is integrated
+                    depth=0,  # Will be updated when depth tracking is integrated
                 )
 
                 # Submit discovered links to coordinator
